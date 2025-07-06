@@ -48,25 +48,71 @@ class ScopeController:
             visa_address: Optional VISA address. If None, will attempt auto-detection.
         """
         try:
+            # First try the provided address or GPIB0::1::INSTR
             if visa_address is None:
-                visa_address = self.auto_detect()
-                if visa_address is None:
-                    return False
+                visa_address = "GPIB0::1::INSTR"
+                self.logger.info("Using default GPIB address: GPIB0::1::INSTR")
+            
+            # List available resources
+            resources = self.rm.list_resources()
+            self.logger.info(f"Available VISA resources: {resources}")
+            
+            try:
+                self.logger.info(f"Attempting to connect to {visa_address}")
+                self.scope = self.rm.open_resource(visa_address)
+                self.scope.timeout = 20000  # 20 second timeout
+                self.scope.chunk_size = 1024 * 1024  # Increase chunk size for faster transfers
+                
+                # Test connection with IDN query
+                self.logger.info("Querying device identification...")
+                idn = self.scope.query("*IDN?").strip()
+                self.logger.info(f"Device responded with: {idn}")
+                
+                if not ("TEKTRONIX" in idn.upper() and "DPO7" in idn.upper()):
+                    self.logger.warning(f"Connected device may not be a Tektronix DPO7: {idn}")
+                
+                # Configure scope for optimal data acquisition
+                self.logger.info("Configuring scope settings...")
+                self.scope.write("*RST")  # Reset to default settings
+                self.scope.write("HEADER OFF")  # Turn off headers
+                self.scope.write("VERBOSE ON")  # Enable verbose mode
+                
+                self.connected = True
+                self.logger.info(f"Successfully connected to scope at {visa_address}: {idn}")
+                return True
+                
+            except Exception as e:
+                self.logger.error(f"Failed to connect using {visa_address}: {str(e)}")
+                self.logger.info("Attempting auto-detection as fallback...")
+                
+                # If direct connection failed, try auto-detection
+                alt_address = self.auto_detect()
+                if alt_address and alt_address != visa_address:
+                    self.logger.info(f"Trying alternative address: {alt_address}")
+                    self.scope = self.rm.open_resource(alt_address)
+                    self.scope.timeout = 20000
+                    self.scope.chunk_size = 1024 * 1024
                     
-            self.scope = self.rm.open_resource(visa_address)
-            self.scope.timeout = 10000  # 10 second timeout
-            
-            # Configure scope for optimal data acquisition
-            self.scope.write("*RST")  # Reset to default settings
-            self.scope.write("HEADER OFF")  # Turn off headers
-            self.scope.write("VERBOSE ON")  # Enable verbose mode
-            
-            self.connected = True
-            self.logger.info(f"Connected to scope at {visa_address}")
-            return True
-            
+                    # Configure scope
+                    self.scope.write("*RST")
+                    self.scope.write("HEADER OFF")
+                    self.scope.write("VERBOSE ON")
+                    
+                    self.connected = True
+                    self.logger.info(f"Connected to scope at {alt_address}")
+                    return True
+                    
+                return False
+                
         except Exception as e:
             self.logger.error(f"Error connecting to scope: {str(e)}")
+            if self.scope:
+                try:
+                    self.scope.close()
+                except:
+                    pass
+                self.scope = None
+            self.connected = False
             return False
             
     def disconnect(self):
