@@ -6,6 +6,9 @@ rmdir /s /q build
 rmdir /s /q dist
 del /f /q TCTControl.spec
 
+REM Install/Update required packages
+pip install -r requirements.txt
+
 REM Create executable using PyInstaller
 pyinstaller --clean ^
     --name TCTControl ^
@@ -20,8 +23,15 @@ pyinstaller --clean ^
     --hidden-import=PyQt5.QtWidgets ^
     --hidden-import=numpy ^
     --hidden-import=matplotlib ^
+    --hidden-import=pyvisa ^
+    --hidden-import=pyvisa.highlevel ^
+    --hidden-import=pyvisa.constants ^
+    --hidden-import=pyvisa_py ^
+    --hidden-import=pyvisa_py.protocols ^
     --collect-all PyQt5 ^
     --collect-all libximc ^
+    --collect-all pyvisa ^
+    --collect-all pyvisa_py ^
     main.py
 
 REM Run Inno Setup Compiler

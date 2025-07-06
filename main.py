@@ -29,12 +29,21 @@ try:
     
     try:
         import PyQt5
+        from PyQt5 import QtWidgets, QtCore
         logging.info("Successfully imported PyQt5")
         from PyQt5.QtWidgets import QApplication, QMainWindow, QPushButton, QVBoxLayout, QWidget, QLabel, QLineEdit, QGridLayout, QMessageBox
         from PyQt5.QtCore import Qt
         logging.info("Successfully imported PyQt5 widgets")
     except Exception as e:
         logging.error(f"Failed to import PyQt5: {str(e)}\n{traceback.format_exc()}")
+    
+    try:
+        import pyvisa
+        logging.info("Successfully imported pyvisa")
+        import pyvisa_py
+        logging.info("Successfully imported pyvisa_py")
+    except Exception as e:
+        logging.error(f"Failed to import pyvisa: {str(e)}\n{traceback.format_exc()}")
     
     try:
         import numpy
