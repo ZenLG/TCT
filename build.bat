@@ -15,8 +15,13 @@ pyinstaller --clean ^
     --hidden-import=pkg_resources ^
     --hidden-import=libximc ^
     --hidden-import=PyQt5 ^
+    --hidden-import=PyQt5.QtCore ^
+    --hidden-import=PyQt5.QtGui ^
+    --hidden-import=PyQt5.QtWidgets ^
     --hidden-import=numpy ^
     --hidden-import=matplotlib ^
+    --collect-all PyQt5 ^
+    --collect-all libximc ^
     main.py
 
 REM Run Inno Setup Compiler
