@@ -1,0 +1,8 @@
+pyvisa>=1.13.0  # For oscilloscope communication
+pyvisa-py>=0.7.0  # Pure Python backend for PyVISA
+numpy>=1.24.0  # For data handling
+pandas>=2.0.0  # For data organization
+PyQt6>=6.5.0  # For GUI
+pyserial>=3.5  # For serial communication with stage
+matplotlib>=3.7.0  # For data visualization
+pyyaml>=6.0.0  # For configuration file handling 
