@@ -25,11 +25,11 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.logger = logging.getLogger(__name__)
         
-        # Default serial numbers for the stage axes
-        self.default_serials = {
-            'X': '10223',
-            'Y': '10222',
-            'Z': '10999'
+        # Default COM ports for the stage axes
+        self.default_ports = {
+            'X': 'COM4',  # X axis
+            'Y': 'COM6',  # Y axis
+            'Z': 'COM5'   # Z axis
         }
         
         self.stage = StageController()
@@ -80,18 +80,18 @@ class MainWindow(QMainWindow):
         group = QGroupBox("Connection Control")
         layout = QGridLayout()
         
-        # Serial number inputs with default values
-        layout.addWidget(QLabel("X Axis Serial:"), 0, 0)
-        self.x_serial = QLineEdit(self.default_serials['X'])
-        layout.addWidget(self.x_serial, 0, 1)
+        # COM port inputs with default values
+        layout.addWidget(QLabel("X Axis Port:"), 0, 0)
+        self.x_port = QLineEdit(self.default_ports['X'])
+        layout.addWidget(self.x_port, 0, 1)
         
-        layout.addWidget(QLabel("Y Axis Serial:"), 1, 0)
-        self.y_serial = QLineEdit(self.default_serials['Y'])
-        layout.addWidget(self.y_serial, 1, 1)
+        layout.addWidget(QLabel("Y Axis Port:"), 1, 0)
+        self.y_port = QLineEdit(self.default_ports['Y'])
+        layout.addWidget(self.y_port, 1, 1)
         
-        layout.addWidget(QLabel("Z Axis Serial:"), 2, 0)
-        self.z_serial = QLineEdit(self.default_serials['Z'])
-        layout.addWidget(self.z_serial, 2, 1)
+        layout.addWidget(QLabel("Z Axis Port:"), 2, 0)
+        self.z_port = QLineEdit(self.default_ports['Z'])
+        layout.addWidget(self.z_port, 2, 1)
         
         # Connect button
         self.connect_btn = QPushButton("Connect Devices")
@@ -275,10 +275,10 @@ class MainWindow(QMainWindow):
         """Save the current configuration to a file."""
         try:
             config = {
-                'serials': {
-                    'X': self.x_serial.text(),
-                    'Y': self.y_serial.text(),
-                    'Z': self.z_serial.text()
+                'ports': {
+                    'X': self.x_port.text(),
+                    'Y': self.y_port.text(),
+                    'Z': self.z_port.text()
                 }
             }
             
@@ -311,10 +311,10 @@ class MainWindow(QMainWindow):
                 with open(filename, 'r') as f:
                     config = yaml.safe_load(f)
                     
-                if 'serials' in config:
-                    self.x_serial.setText(config['serials'].get('X', ''))
-                    self.y_serial.setText(config['serials'].get('Y', ''))
-                    self.z_serial.setText(config['serials'].get('Z', ''))
+                if 'ports' in config:
+                    self.x_port.setText(config['ports'].get('X', ''))
+                    self.y_port.setText(config['ports'].get('Y', ''))
+                    self.z_port.setText(config['ports'].get('Z', ''))
                     self.logger.info(f"Configuration loaded from {filename}")
                     
         except Exception as e:
@@ -323,30 +323,63 @@ class MainWindow(QMainWindow):
     @pyqtSlot()
     def connect_devices(self):
         if not self.connected:
-            # Set axis serial numbers
-            x_serial = self.x_serial.text().strip()
-            y_serial = self.y_serial.text().strip()
-            z_serial = self.z_serial.text().strip()
+            self.logger.info("Starting device connection process...")
             
-            if not all([x_serial, y_serial, z_serial]):
-                QMessageBox.warning(self, "Connection Error", "Please enter serial numbers for all axes")
+            # Set axis ports
+            x_port = self.x_port.text().strip()
+            y_port = self.y_port.text().strip()
+            z_port = self.z_port.text().strip()
+            
+            if not all([x_port, y_port, z_port]):
+                QMessageBox.warning(self, "Connection Error", "Please enter COM ports for all axes")
                 return
                 
-            # Configure stage serials
-            self.stage.set_axis_serials(x_serial, y_serial, z_serial)
+            self.logger.info(f"Using ports - X: {x_port}, Y: {y_port}, Z: {z_port}")
+            
+            # Configure stage ports
+            self.stage.set_axis_ports(x_port, y_port, z_port)
             
             # Connect stage
-            if self.stage.connect():
-                self.stage_status.setText("Stage: Connected")
-            else:
-                QMessageBox.warning(self, "Connection Error", "Failed to connect to stage")
+            try:
+                self.logger.info("Attempting to connect to stage...")
+                if self.stage.connect():
+                    self.stage_status.setText("Stage: Connected")
+                    self.logger.info("Stage connected successfully")
+                else:
+                    error_msg = "Failed to connect to stage.\n\nPlease check:\n"
+                    error_msg += "1. XILab software is installed\n"
+                    error_msg += "2. Stage is powered on\n"
+                    error_msg += "3. USB cables are properly connected\n"
+                    error_msg += "4. Correct COM ports are selected\n"
+                    error_msg += "\nCheck the application log for more details."
+                    QMessageBox.warning(self, "Connection Error", error_msg)
+                    return
+            except Exception as e:
+                self.logger.error(f"Stage connection error: {str(e)}")
+                QMessageBox.warning(self, "Connection Error", f"Stage connection error: {str(e)}")
                 return
                 
             # Connect scope
-            if self.scope.connect():
-                self.scope_status.setText("Scope: Connected")
-            else:
-                QMessageBox.warning(self, "Connection Error", "Failed to connect to scope")
+            try:
+                self.logger.info("Attempting to connect to oscilloscope...")
+                if self.scope.connect():
+                    self.scope_status.setText("Scope: Connected")
+                    self.logger.info("Oscilloscope connected successfully")
+                else:
+                    error_msg = "Failed to connect to scope.\n\nPlease check:\n"
+                    error_msg += "1. VISA drivers are installed\n"
+                    error_msg += "2. Scope is powered on\n"
+                    error_msg += "3. GPIB cable is connected\n"
+                    error_msg += "4. Scope is set to GPIB address 1\n"
+                    error_msg += "\nTrying to connect using GPIB0::1::INSTR"
+                    self.logger.warning(error_msg)
+                    QMessageBox.warning(self, "Connection Error", error_msg)
+                    self.stage.disconnect()
+                    self.stage_status.setText("Stage: Not Connected")
+                    return
+            except Exception as e:
+                self.logger.error(f"Scope connection error: {str(e)}")
+                QMessageBox.warning(self, "Connection Error", f"Scope connection error: {str(e)}")
                 self.stage.disconnect()
                 self.stage_status.setText("Stage: Not Connected")
                 return
@@ -354,13 +387,15 @@ class MainWindow(QMainWindow):
             self.connected = True
             self.connect_btn.setText("Disconnect")
             self.update_position_display()
+            self.logger.info("All devices connected successfully")
             
-            # Disable serial inputs while connected
-            self.x_serial.setEnabled(False)
-            self.y_serial.setEnabled(False)
-            self.z_serial.setEnabled(False)
+            # Disable port inputs while connected
+            self.x_port.setEnabled(False)
+            self.y_port.setEnabled(False)
+            self.z_port.setEnabled(False)
             
         else:
+            self.logger.info("Disconnecting devices...")
             self.stop_scan()  # Stop any ongoing scan
             self.stage.disconnect()
             self.scope.disconnect()
@@ -368,11 +403,12 @@ class MainWindow(QMainWindow):
             self.scope_status.setText("Scope: Not Connected")
             self.connected = False
             self.connect_btn.setText("Connect Devices")
+            self.logger.info("All devices disconnected")
             
-            # Re-enable serial inputs
-            self.x_serial.setEnabled(True)
-            self.y_serial.setEnabled(True)
-            self.z_serial.setEnabled(True)
+            # Re-enable port inputs
+            self.x_port.setEnabled(True)
+            self.y_port.setEnabled(True)
+            self.z_port.setEnabled(True)
             
     def update_position_display(self):
         if self.connected:
@@ -412,8 +448,8 @@ class MainWindow(QMainWindow):
             
         self.scope.auto_scale(channel)
         
-    @pyqtSlot()
     def acquire_data(self):
+        """Acquire data from enabled channels with timeout protection."""
         if not self.connected or not self.file_path.text():
             return
             
@@ -423,21 +459,30 @@ class MainWindow(QMainWindow):
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             base_filename = f"{self.file_path.text()}/waveform_x{x}_y{y:.3f}_z{z:.3f}_{timestamp}"
             
-            # Acquire from enabled channels
+            # Acquire from enabled channels with timeout protection
             if self.ch1_enable.isChecked():
-                self.scope.configure_channel(1, self.ch1_scale.value() / 1000.0)  # Convert mV to V
-                self.scope.set_trigger(1, self.ch1_trigger.value() / 1000.0)  # Convert mV to V
-                self.scope.save_waveform(1, f"{base_filename}_ch1.csv")
-                
+                try:
+                    self.scope.configure_channel(1, self.ch1_scale.value() / 1000.0)  # Convert mV to V
+                    self.scope.set_trigger(1, self.ch1_trigger.value() / 1000.0)  # Convert mV to V
+                    self.scope.save_waveform(1, f"{base_filename}_ch1.csv")
+                except Exception as e:
+                    self.logger.error(f"Channel 1 acquisition failed: {str(e)}")
+                    raise
+                    
             if self.ch3_enable.isChecked():
-                self.scope.configure_channel(3, self.ch3_scale.value() / 1000.0)  # Convert mV to V
-                self.scope.set_trigger(3, self.ch3_trigger.value() / 1000.0)  # Convert mV to V
-                self.scope.save_waveform(3, f"{base_filename}_ch3.csv")
-                
+                try:
+                    self.scope.configure_channel(3, self.ch3_scale.value() / 1000.0)  # Convert mV to V
+                    self.scope.set_trigger(3, self.ch3_trigger.value() / 1000.0)  # Convert mV to V
+                    self.scope.save_waveform(3, f"{base_filename}_ch3.csv")
+                except Exception as e:
+                    self.logger.error(f"Channel 3 acquisition failed: {str(e)}")
+                    raise
+                    
             self.logger.info(f"Saved waveforms at position X={x}steps, Y={y:.3f}mm, Z={z:.3f}mm")
             
         except Exception as e:
-            QMessageBox.warning(self, "Acquisition Error", f"Failed to acquire data: {str(e)}")
+            self.logger.error(f"Data acquisition failed: {str(e)}")
+            raise
             
     @pyqtSlot()
     def browse_save_path(self):
@@ -477,9 +522,15 @@ class MainWindow(QMainWindow):
             return
             
         try:
-            # Get current position
-            x, y, z = self.stage.get_position()
-            
+            # Get current position with timeout
+            try:
+                x, y, z = self.stage.get_position()
+            except Exception as e:
+                self.logger.error(f"Failed to get position: {str(e)}")
+                self.stop_scan()
+                QMessageBox.warning(self, "Scan Error", "Failed to get stage position")
+                return
+                
             # Calculate new position based on selected axis
             axis = self.scan_axis.currentText()
             step = self.step_size.value()
@@ -491,23 +542,58 @@ class MainWindow(QMainWindow):
             else:  # Z
                 z += step / 1000.0  # Convert µm to mm
                 
-            # Move to new position
-            if self.stage.move_to_position(x, y, z):
-                # Acquire data
-                self.acquire_data()
+            # Move to new position with timeout
+            move_timer = QTimer()
+            move_timer.setSingleShot(True)
+            move_timer.start(10000)  # 10 second timeout
+            
+            try:
+                if not self.stage.move_to_position(x, y, z):
+                    raise Exception("Stage movement failed")
+                    
+                # Wait for movement to complete
+                while not move_timer.isActive():
+                    QApplication.processEvents()  # Keep UI responsive
+                    if self.stage.is_moving():
+                        continue
+                    break
+                    
+                if move_timer.isActive():
+                    move_timer.stop()
+                else:
+                    raise Exception("Stage movement timed out")
+                    
+            except Exception as e:
+                self.logger.error(f"Movement error: {str(e)}")
+                self.stop_scan()
+                QMessageBox.warning(self, "Scan Error", f"Stage movement failed: {str(e)}")
+                return
                 
-                # Check if scan is complete
-                self.current_scan_position += 1
-                if self.current_scan_position >= self.num_steps.value():
-                    self.stop_scan()
-                    QMessageBox.information(self, "Scan Complete", "Automated scan completed successfully")
-            else:
-                raise Exception("Failed to move to next position")
-                
+            # Small delay to ensure stage has settled
+            QTimer.singleShot(100, self._acquire_after_move)
+            
         except Exception as e:
-            QMessageBox.warning(self, "Scan Error", f"Error during scan: {str(e)}")
+            self.logger.error(f"Scan step error: {str(e)}")
             self.stop_scan()
-
+            QMessageBox.warning(self, "Scan Error", f"Error during scan: {str(e)}")
+            
+    def _acquire_after_move(self):
+        """Helper method to acquire data after movement has completed."""
+        try:
+            # Acquire data
+            self.acquire_data()
+            
+            # Check if scan is complete
+            self.current_scan_position += 1
+            if self.current_scan_position >= self.num_steps.value():
+                self.stop_scan()
+                QMessageBox.information(self, "Scan Complete", "Scan completed successfully")
+            
+        except Exception as e:
+            self.logger.error(f"Acquisition error: {str(e)}")
+            self.stop_scan()
+            QMessageBox.warning(self, "Scan Error", f"Failed to acquire data: {str(e)}")
+            
     def update_step_size_unit(self, axis):
         """Update step size unit and range based on selected axis"""
         if axis == "X":
